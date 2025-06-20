@@ -366,4 +366,195 @@ A comprehensive testing strategy is crucial for ensuring the quality, reliabilit
 
 This multi-layered testing approach aims to catch issues early, ensure components integrate correctly, and validate that the overall MVP meets its functional requirements.
 
-*(Further sections will detail post-MVP outlook.)*
+## 8. Development Practices & Tooling Integration for MVP
+
+This section details how overarching development practices and specific tooling strategies will be applied consistently across all MVP modules to ensure quality, collaboration, and efficiency.
+
+### 8.1. CI/CD Pipeline Integration Across MVP Modules
+
+The Continuous Integration/Continuous Deployment (CI/CD) pipeline strategy, as defined in `echonet_v3_cicd_strategy.md`, will be integral to the MVP development process for all modules (DLI Core, Identity & Privacy, Content Validation & Incentives).
+
+*   **Reiteration of CI/CD Goals for MVP:**
+    *   **Rapid Feedback:** Provide developers with quick feedback on their changes.
+    *   **Code Quality:** Automatically enforce coding standards, linting, and formatting.
+    *   **Early Bug Detection:** Catch issues early through automated unit, integration, and (eventually) E2E tests.
+    *   **Consistent Build & Test Environment:** Ensure all code is built and tested in a standardized environment, reducing "works on my machine" issues.
+    *   **Automated Artifact Generation:** Produce consistent build artifacts (binaries, Docker images for test nodes).
+
+*   **Pre-Commit Hooks (MVP Context):**
+    *   **Tooling:** Utilize tools like Husky or pre-commit.
+    *   **Checks:**
+        *   **Linters:** Ruff (if any Python utility scripts), `golangci-lint` for Go.
+        *   **Code Formatters:** Black (Python), `gofmt`/`goimports` for Go.
+        *   **Proto Linters:** `buf lint` for Protocol Buffer definitions.
+    *   **Enforcement:** Strongly encouraged for all developers to ensure code quality before changes are even committed to local branches.
+
+*   **On-Commit/Pull Request (PR) Pipeline for MVP Modules:**
+    *   Triggered automatically on every push to a feature branch or when a PR is created/updated against the `develop` branch.
+    *   **1. Build & Compilation:** Each module's components (Go binaries for DLI nodes, client CLI) must compile successfully. Protobuf code generation (`protoc`) will be a part of this step.
+    *   **2. Static Analysis:**
+        *   Go: `go vet`, `staticcheck`, and other tools included in `golangci-lint`.
+        *   (If Python utils exist): MyPy for type checking, Bandit for security analysis.
+    *   **3. Unit Testing:**
+        *   All new code for MVP modules (DLI core logic, DID library functions, PoE scoring algorithms, etc.) must be accompanied by comprehensive unit tests.
+        *   Enforce code coverage checks (e.g., using Go's built-in coverage tools). Aim for a minimum coverage threshold (e.g., >80%) for core, critical logic. Test failures will block PR merging.
+    *   **4. Integration Testing (MVP Scope - Automated in CI):**
+        *   Focus on automated tests for interactions *between components of the same module* initially (e.g., testing DDS RPC handlers with an in-memory storage backend within a single test process).
+        *   As modules mature, introduce tests for interactions *between the three core MVP modules* (e.g., DID registration event triggering PoW validation and DDS storage).
+        *   Mock external dependencies or modules that are not yet built or are outside the immediate test scope.
+    *   **5. Security Scanning (Automated):**
+        *   **SAST (Static Application Security Testing):** `gosec` for Go code.
+        *   **Dependency Scanning:** Check for known vulnerabilities in third-party Go modules (e.g., using `govulncheck`) and other dependencies.
+        *   Results will be reported in the PR; critical vulnerabilities must be addressed before merging.
+
+*   **Post-Merge/Main Branch Pipeline for MVP (Simulated Testnet Environment):**
+    *   Triggered automatically after a PR is merged into the `develop` branch (and eventually for releases tagged from `main`).
+    *   **1. Automated Deployment to Simulated Testnet:**
+        *   Build fresh Docker images for DLI nodes (incorporating MVDLI, Identity, and Content Validation components as they are completed).
+        *   Automatically deploy these images to a consistent, containerized (Docker Compose or Kubernetes-lite like k3s/Kind) multi-node test environment. This environment will simulate a small EchoNet network.
+    *   **2. Automated End-to-End (E2E) Scenario Tests:**
+        *   Run a suite of automated E2E tests using the CLI/test client against the deployed simulated testnet.
+        *   These tests will cover core MVP user stories as defined in Section 6.1 (e.g., DID creation -> content publish -> basic PoE interaction -> view content).
+        *   Test failures here would indicate issues with inter-module integration or deployment configurations.
+
+*   **Artifact Management (Conceptual for MVP):**
+    *   **Build Artifacts:** Versioned Go binaries for DLI nodes and the CLI/test client.
+    *   **Container Images:** Versioned Docker images for DLI nodes, stored in a container registry (e.g., Docker Hub, GitHub Container Registry, or a private registry). Image tagging will align with code versions/tags.
+    *   **Test Reports:** Store and make accessible unit test, integration test, and E2E test reports (including coverage) for each build.
+
+*   **Branching Strategy for MVP:**
+    *   **Main Branches:**
+        *   `main`: Represents the most stable, "released" state of the MVP (even if internal releases). Protected branch.
+        *   `develop`: Integration branch where features are merged. Represents the current state of active MVP development. Nightly or regular builds deployed to a staging/dev testnet should come from this branch.
+    *   **Feature Branches:** Developers create `feature/<feature-name>` branches off `develop` for their individual tasks.
+    *   **Pull Requests (PRs):** All code changes are submitted to `develop` via PRs. PRs must pass the "On-Commit/Pull Request Pipeline" checks before being eligible for review and merging.
+    *   **Hotfix Branches (Post-MVP Release):** If critical bugs are found in `main`, `hotfix/<issue-id>` branches can be created from `main`, fixed, and merged back into both `main` and `develop`.
+
+This CI/CD setup ensures that each module of the MVP is developed with consistent quality checks and that inter-module integrations are tested early and often, aligning with the "Iterate Intelligently, Integrate Intuitively" principle.
+
+### 8.2. Test-Driven Development (TDD) Approach for MVP
+
+To further enhance code quality, design clarity, and developer confidence during the MVP development, Test-Driven Development (TDD) will be the primary methodology for implementing new core logic.
+
+*   **Reiteration of TDD Principle:** TDD follows a short, iterative cycle:
+    1.  **Red:** Write a failing test that defines a desired improvement or new function.
+    2.  **Green:** Write the minimal amount of code necessary to make the test pass.
+    3.  **Refactor:** Clean up the code (both production and test code) to improve readability, maintainability, and performance while ensuring all tests still pass.
+*   **Scope of TDD for MVP:**
+    *   TDD is mandated for all new **core DLI logic** (e.g., PoW event validation rules, DDS chunk management, Discovery DHT operations).
+    *   It will be applied to **business logic within DLI-native "contracts"** (even if these are conceptual Go modules in the MVP, like the ReputationUpdateContract or PoEDistributionContract).
+    *   Critical **library functions** (e.g., canonicalization, hashing utilities, `did:echonet` helper functions) will also be developed using TDD.
+    *   User Interface (UI) development for the CLI/test client might use other testing approaches (like BDD or manual E2E testing for usability), but the underlying command handlers and logic interacting with the DLI should still be TDD-driven where possible.
+*   **Unit Test Focus:**
+    *   TDD naturally produces a comprehensive suite of unit tests that cover individual components thoroughly.
+    *   These unit tests also serve as a form of **executable specification**, clearly demonstrating how each component is intended to behave based on its inputs.
+*   **Integration with CI/CD:**
+    *   The unit tests generated through TDD are a fundamental part of the "On-Commit/Pull Request Pipeline" (detailed in section 8.1 and `echonet_v3_cicd_strategy.md`).
+    *   The CI server will execute all TDD-generated unit tests. Builds (and PR merges) **must fail** if any of these unit tests fail, ensuring that regressions are caught immediately.
+*   **Test Coverage:**
+    *   While TDD focuses on testing behavior, a high level of unit test code coverage is an expected outcome.
+    *   Coverage will be monitored using tools integrated into the CI pipeline (e.g., Go's built-in coverage tools). The aim for TDD-developed core components will be to achieve and maintain high coverage (e.g., >80-90%).
+*   **Developer Workflow:**
+    1.  Select a small piece of functionality from an MVP task.
+    2.  Write a unit test specifying the expected behavior for that functionality. Run it; it should fail (Red).
+    3.  Write the simplest production code to make the unit test pass (Green).
+    4.  Refactor the production code and test code for clarity and efficiency, ensuring tests continue to pass.
+    5.  Repeat for the next piece of functionality.
+*   **Benefits for MVP:**
+    *   **Increased Confidence:** Provides high confidence in the correctness of individual components.
+    *   **Reduced Bugs:** Catches bugs early in the development cycle, reducing the cost of fixing them.
+    *   **Improved Design:** Writing tests first often leads to better-designed, more modular, and more testable code (loosely coupled components with clear interfaces).
+    *   **Facilitates Refactoring:** A comprehensive test suite allows developers to refactor and improve code with confidence, knowing that regressions will be caught. This is vital as the MVP evolves.
+    *   **Living Documentation:** Unit tests act as up-to-date documentation for how components are supposed to work.
+
+By enforcing TDD for core logic, the EchoNet MVP aims to build a high-quality, robust, and maintainable foundation from the outset.
+
+### 8.3. Documentation Standards & Collaboration Tools for MVP Development
+
+Consistent documentation and effective collaboration are vital for the success of the MVP and for laying the groundwork for future development. This aligns with the `echonet_v3_documentation_strategy.md`.
+
+*   **Living Technical Documentation:**
+    *   **Principle:** Technical documentation is not an afterthought but an integral part of the development process. It should be a "living" resource, updated as the code evolves.
+    *   **Focus for MVP:**
+        *   **Key Architectural Decisions:** Any significant design choices or deviations made during MVP implementation from the initial `tech_specs` should be documented with rationale.
+        *   **API Specifications:**
+            *   Protobuf definitions (`.proto` files) for data structures and RPC services serve as the primary API specification. These will be version-controlled with the codebase.
+            *   Generated documentation from Protobufs (e.g., using `protoc-gen-doc`) will be utilized.
+        *   **Setup Guides for MVDLI Nodes:** Clear, concise instructions on how to compile, configure, and run an MVDLI node in a test environment.
+        *   **Usage Instructions for Test Client/CLI:** Detailed examples of how to use the test client/CLI to perform all MVP user stories (content publishing, DID registration, consent actions, PoE interactions).
+    *   **Code Comments:**
+        *   Developers are expected to write clear, concise comments in the Go code, especially for:
+            *   Public functions and struct fields (GoDoc style).
+            *   Complex or non-obvious logic.
+            *   Assumptions or known limitations.
+        *   Comments should explain *why* something is done, not just *what* is done (if the code itself is clear on the "what").
+
+*   **Collaboration Tools & Processes:**
+    *   **Version Control:**
+        *   **Git:** The distributed version control system will be used.
+        *   **Hosting Platform:** A shared Git hosting platform like GitHub or GitLab will be used for the central repositories.
+    *   **Branching Strategy (Reiteration):**
+        *   As detailed in Section 8.1 (CI/CD), a strategy like Gitflow (with `main`, `develop`, feature branches, and PRs) will be employed to manage code changes systematically.
+    *   **Pull Request (PR) / Merge Request (MR) Workflow:**
+        *   All code contributions, including documentation changes, must be submitted via PRs/MRs to the `develop` branch.
+        *   **Peer Review:** Require at least one other developer to review and approve a PR/MR before merging. Reviews should focus on correctness, design, adherence to standards, and test coverage.
+        *   **CI Checks:** All CI checks (build, lint, tests, security scans as defined in Section 8.1) must pass before a PR/MR can be merged.
+    *   **Issue Tracking:**
+        *   A dedicated issue tracker (e.g., GitHub Issues, GitLab Issues, Jira) will be used to manage:
+            *   Bug reports.
+            *   Feature requests for post-MVP.
+            *   MVP development tasks (broken down from the MVP plans).
+        *   Commits and PRs should be linked to the relevant issue(s) for traceability.
+    *   **Communication Channels:**
+        *   **Primary Chat:** A dedicated team chat platform (e.g., Slack, Discord, Mattermost) for quick discussions, questions, and coordination.
+        *   **Meetings:** Regular (e.g., daily or thrice-weekly) short virtual stand-up meetings for developers to synchronize, discuss blockers, and plan immediate work. Less frequent (e.g., weekly or bi-weekly) meetings for broader MVP progress review and planning.
+    *   **Knowledge Sharing:**
+        *   **Internal Wiki / Shared Document Space:** (e.g., Confluence, Google Workspace, or the project's Git repository for markdown-based design notes). Used for:
+            *   Design notes and ad-hoc technical discussions not captured in formal `tech_specs` or this roadmap.
+            *   Meeting minutes and action items.
+            *   Onboarding information for new team members.
+
+*   **Documentation Updates with Code:**
+    *   When a code change in a PR/MR affects existing functionality, design, or API contracts, the relevant technical documentation (e.g., `tech_specs/*.md`, setup guides, code comments) **must** be updated as part of the same PR/MR. This ensures documentation remains synchronized with the codebase.
+
+Adherence to these documentation and collaboration standards will be crucial for maintaining clarity, consistency, and shared understanding as the EchoNet MVP is developed by the team.
+
+## 9. High-Level Post-MVP Outlook
+
+The successful delivery of the EchoNet MVP v0.1, as defined by the milestones in Section 6.1, marks the completion of the foundational software. It will provide a functional, albeit simplified, decentralized system demonstrating core user stories. The post-MVP phase will focus on iterative enhancements, hardening, and expansion of features towards the full EchoNet vision.
+
+Key areas for development beyond the MVP include:
+
+*   **Enhanced DLI Core Features:**
+    *   **Full Proof-of-Witness (PoW):** Implementation of dynamic Witness registration, staking/bonding mechanisms (requires tokenomics integration), VRF-based committee selection, and robust slashing conditions for Witness misbehavior.
+    *   **Advanced Distributed Data Stores (DDS):** Implementation of data replication across SSNs, erasure coding for enhanced durability, full Proof-of-Storage-Receipt (PoSR) challenges and validation, and dynamic node announcements/discovery.
+    *   **Robust Discovery Protocol:** Scalable and secure DHT implementation, advanced peer routing, and potentially alternative discovery mechanisms.
+    *   **Network Bootstrapping & Incentives:** Refined mechanisms for new nodes joining the network, and initial incentive structures for SSN and Witness participation (linked to tokenomics).
+*   **Identity & Privacy Enhancements:**
+    *   **Full DID Lifecycle Management:** Robust implementation of DID updates (key rotation, service endpoint changes) and deactivation.
+    *   **Advanced Key Management:** Integration with hardware security modules (HSMs) for node operators, more sophisticated client-side key management solutions (including recovery options).
+    *   **Verifiable Credentials (VCs):** Integration of VC issuance, holding, and presentation capabilities using `did:echonet`.
+    *   **Selective Disclosure & Zero-Knowledge Proofs (ZKPs):** Research and potential integration of ZKPs for enhanced privacy in data sharing and attestations.
+*   **Content Validation, Monetization & Social Features:**
+    *   **Sophisticated Proof-of-Engagement (PoE):** Refined PoE Quality Scoring algorithms, outcome-based scoring (e.g., for effective shares, accurate flags), dynamic adjustment of `PoEScoreFactorsV1` via governance.
+    *   **Real AI/ML Model Integration:** Transition from `AIOracleService` stubs to integration with actual, trained AI/ML models for content quality, interaction analysis, and anomaly detection. Development of the AI Oracle network.
+    *   **Full Tokenomics Implementation:** Introduction of the ECHO token, integration with wallets, and enabling actual on-DLI value transfer for PoE rewards, tipping, and future content monetization features.
+    *   **Advertising Module:** Design and implementation of the decentralized advertising marketplace.
+    *   **Expanded Social Features:** Richer interaction types, content discovery algorithms, user-curated feeds/lists, notification systems.
+*   **Mobile Client & Node Capabilities:**
+    *   Development of full-featured native mobile applications (iOS, Android) for the "Host" role.
+    *   Implementation and testing of more advanced mobile node roles (Super-Host, Decelerator, potentially limited Mobile Witness roles) as per `tech_specs/mobile_node_specifications.md`.
+*   **Governance:**
+    *   Implementation of the on-DLI governance mechanisms outlined in `echonet_v3_governance_model.md` for protocol upgrades, parameter changes, and treasury management.
+*   **Scalability, Performance & Security:**
+    *   Continuous performance profiling and optimization of DLI nodes and protocols.
+    *   Horizontal scaling strategies for DLI components.
+    *   Comprehensive security audits, penetration testing, and ongoing security hardening.
+    *   Advanced anti-gaming and anti-spam mechanisms.
+*   **Developer Ecosystem & Documentation:**
+    *   Creation of comprehensive SDKs for various programming languages.
+    *   Detailed developer documentation, tutorials, and community support channels.
+
+The post-MVP roadmap will be driven by community feedback, research breakthroughs, and the evolving needs of the EchoNet ecosystem, always adhering to the core principles of decentralization, user empowerment, and iterative development.
+
+*(This concludes the main sections of the Overall MVP Implementation Roadmap.)*

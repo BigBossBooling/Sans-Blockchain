@@ -1,0 +1,174 @@
+syntax = "proto3";
+
+package echonet.dds.v3; // New package for DDS specific messages
+
+import "echonet_core.v3"; // Imports types like DDSChunk, StorageChallengeRequest etc.
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/your_org/digisocialblock/internal/dds/proto/v3;ddspbv3";
+
+// Information about a storage node's capabilities and stored content.
+// (From tech_specs/dds_protocol.md)
+message NodeAnnouncementInfo {
+  // DID of the announcing node.
+  string node_did = 1; // [(validate.rules).string.pattern = "^did:echonet:[a-zA-Z0-9._%-]+$"];
+
+  // Network address of the node (e.g., multiaddr format).
+  string address = 2;
+
+  // Type of storage node (e.g., "SSN_GENERIC", "ASN_HIGH_DURABILITY", "ECN_CACHE").
+  string storage_type = 3;
+
+  // Geographic region hint (optional).
+  string region_hint = 4;
+
+  // Total storage capacity in bytes (optional).
+  uint64 total_capacity_bytes = 5;
+
+  // Available storage capacity in bytes (optional).
+  uint64 available_capacity_bytes = 6;
+
+  // List of chunk_ids this node is announcing it holds.
+  // For bulk announcements, this can be paginated or use probabilistic structures like Bloom filters.
+  // For MVP, a simple list.
+  repeated string held_chunk_ids = 7;
+
+  // Timestamp of the announcement.
+  google.protobuf.Timestamp announcement_timestamp = 8;
+
+  // Signature by node_did over (address, storage_type, region_hint, total_capacity_bytes, available_capacity_bytes, sorted(held_chunk_ids), announcement_timestamp)
+  bytes signature = 9;
+}
+
+// Instruction for a node to replicate/repair a chunk.
+// (From tech_specs/dds_protocol.md)
+message ReplicationInstruction {
+  // Identifier of the chunk to be replicated or repaired.
+  string chunk_id = 1;
+
+  // List of known peer DIDs currently holding this chunk (optional).
+  // If empty, the recipient node should use the Discovery system.
+  repeated string source_peer_dids = 2;
+
+  // Target replication factor (if applicable).
+  uint32 target_replication_factor = 3;
+
+  // Reason for instruction (e.g., "INITIAL_REPLICATION", "REPAIR_LOST_REPLICA").
+  string reason = 4;
+
+  // Unique ID for this instruction, can be used for tracking.
+  string instruction_id = 5;
+
+  // Timestamp when the instruction was issued.
+  google.protobuf.Timestamp issued_timestamp = 6;
+}
+
+// --- RPC Service Definition for DDS Nodes (DDSNodeService) ---
+// (From tech_specs/dds_protocol.md)
+
+// ---- StoreChunk RPC Messages ----
+message StoreChunkRequest {
+  echonet_core.v3.DDSChunk chunk = 1; // Contains chunk_id and data.
+
+  // Optional: Desired initial replication factor. The network will aim for this.
+  uint32 desired_initial_replication = 2;
+
+  // Optional: Signature of chunk_id by the original content creator's DID.
+  // Helps SSNs verify authenticity and prioritize storage.
+  bytes origin_signature = 3;
+
+  // Optional: ContentID of the parent object this chunk belongs to (from echonet_core.v3)
+  string parent_content_id = 4;
+}
+
+message StoreChunkResponse {
+  // Unique ID for this storage transaction on this node.
+  string storage_receipt_id = 1;
+
+  // True if successfully stored locally (replication initiated separately).
+  bool success = 2;
+
+  // Error details if success is false.
+  echonet_core.v3.DDSProtocolError error = 3;
+}
+
+// ---- RetrieveChunk RPC Messages ----
+message RetrieveChunkRequest {
+  string chunk_id = 1;
+
+  // Optional: Specify a byte range (e.g., "bytes=0-1023").
+  // If not provided, the whole chunk is returned.
+  string byte_range = 2; // RFC 7233 format
+}
+
+message RetrieveChunkResponse {
+  echonet_core.v3.DDSChunk chunk = 1; // Contains chunk_id and requested data (full or partial).
+
+  // True if data is present and retrieved.
+  bool success = 2;
+
+  // Error details if success is false.
+  echonet_core.v3.DDSProtocolError error = 3;
+}
+
+// ---- AnnounceAvailability RPC Messages ----
+// Actual interaction with DHT, but showing request/response structure.
+message AnnounceAvailabilityRequest {
+  NodeAnnouncementInfo announcement = 1;
+}
+
+message AnnounceAvailabilityResponse {
+  bool success = 1; // True if announcement accepted by local DHT client/interface.
+  echonet_core.v3.DDSProtocolError error = 2;
+}
+
+// ---- RequestChunkForReplication RPC Messages ----
+message RequestChunkForReplicationRequest {
+  string chunk_id = 1;
+
+  // DID of the node requesting the chunk.
+  string requester_node_did = 2;
+
+  // Optional: Nonce to prevent replay attacks for this request.
+  string nonce = 3;
+}
+
+message RequestChunkForReplicationResponse {
+  echonet_core.v3.DDSChunk chunk = 1;
+  bool success = 2;
+  echonet_core.v3.DDSProtocolError error = 3;
+}
+
+// ---- RequestErasureFragment RPC Messages ----
+message RequestErasureFragmentRequest {
+  string original_chunk_id = 1;
+  uint32 fragment_index = 2;
+}
+
+message RequestErasureFragmentResponse {
+  echonet_core.v3.ErasureFragment fragment = 1;
+  bool success = 2;
+  echonet_core.v3.DDSProtocolError error = 3;
+}
+
+// DDSNodeService defines the RPC calls supported by DDS storage nodes.
+service DDSNodeService {
+  // Client/Origin Node requests an SSN to store a chunk.
+  rpc StoreChunk(StoreChunkRequest) returns (StoreChunkResponse);
+
+  // Client/ECN/SSN requests to retrieve a chunk from an SSN/ASN.
+  rpc RetrieveChunk(RetrieveChunkRequest) returns (RetrieveChunkResponse);
+
+  // SSN/ASN announces to the Discovery Protocol (e.g., DHT) that it holds certain chunks.
+  rpc AnnounceAvailability(AnnounceAvailabilityRequest) returns (AnnounceAvailabilityResponse);
+
+  // Witness or auditing node challenges an SSN/ASN to prove storage.
+  // Uses messages from echonet_core.v3
+  rpc HandlePoSRChallenge(echonet_core.v3.StorageChallengeRequest) returns (echonet_core.v3.StorageChallengeResponse);
+
+  // SSN requests a chunk from another SSN for replication or repair.
+  rpc RequestChunkForReplication(RequestChunkForReplicationRequest) returns (RequestChunkForReplicationResponse);
+
+  // Client or SSN requests an erasure-coded fragment from an SSN.
+  rpc RequestErasureFragment(RequestErasureFragmentRequest) returns (RequestErasureFragmentResponse);
+}

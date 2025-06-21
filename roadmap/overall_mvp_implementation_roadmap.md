@@ -82,10 +82,22 @@ This section outlines the proposed sequence for implementing the core modules of
 
 The implementation of the MVDLI core (as detailed in `implementation_plans/dli_core_mvp_plan.md`) must follow a strict sequence due to inherent dependencies. This ensures that foundational components are in place before dependent systems are built.
 
-*   **1. Core Data Structure Implementation (`tech_specs/dli_core_data_structures.md`)**
-    *   **Focus:** Implement the Protocol Buffer definitions (or chosen language equivalents, e.g., Go structs generated from `.proto` files) for `NexusContentObjectV1`, `CoreContentMetadataV1`, `NexusUserObjectV1` (basic form), `NexusInteractionRecordV1` (basic form), `WitnessProofV1` (basic form), and `DDSChunk`.
-    *   **Rationale:** These data structures are the "nouns" of the EchoNet DLI. All other components will create, consume, or manipulate these structures. Their precise implementation is a prerequisite for any further development.
-    *   **Key Deliverable:** Implemented and unit-tested data structure libraries, including serialization and deserialization logic.
+*   **1. Core Data Structures & Serialization (`tech_specs/dli_core_data_structures.md` & related detailed specifications)**
+    *   **Status Update:** Detailed planning and specification for the Core Data Structures, their serialization, Go struct generation, helper methods, validation logic, and unit testing strategy are now **complete**.
+    *   **Guiding Specifications:** Implementation will be based on the following key documents:
+        *   The consolidated Protocol Buffer v3 definitions in `echonet_v3_core.proto` (derived from `tech_specs/dli_core_data_structures.md` and other module-specific data structure definitions).
+        *   The Go struct generation guide: `tech_specs/protobuf_go_generation_guide.md`.
+        *   The conceptual outline for Go-specific helper methods: `tech_specs/go_struct_helper_methods_conceptual.md`.
+        *   The detailed specification for `Validate()` methods for data integrity: `tech_specs/data_structure_validation_logic_spec.md`.
+        *   The comprehensive unit testing strategy: `testing_strategies/core_data_structures_unit_tests.md`.
+    *   **Focus:** Implement the Go structs by generating them from the finalized `echonet_v3_core.proto` definitions as per `tech_specs/protobuf_go_generation_guide.md`. Implement the conceptualized Go helper methods and the specified `Validate()` methods for each data structure. Ensure all implementations adhere to the canonical serialization requirements for hashing and network transmission.
+    *   **Rationale:** These data structures are the "nouns" of the EchoNet DLI. All other components will create, consume, or manipulate these structures. Their precise and correct implementation, based on the detailed specifications, is a prerequisite for any further development.
+    *   **Key Deliverable:**
+        *   Generated Go struct libraries from `echonet_v3_core.proto`.
+        *   Implemented Go helper methods for these structs.
+        *   Implemented `Validate()` methods for data integrity.
+        *   Comprehensive unit tests for all data structures, their helper methods, validation logic, and serialization/deserialization, following `testing_strategies/core_data_structures_unit_tests.md`.
+    *   **Unit Test Focus (Now "Implementation & Unit Test Focus"):** Implement Go structs, helper methods, and validation logic as per the detailed specifications. Develop and execute all unit tests outlined in `testing_strategies/core_data_structures_unit_tests.md` to ensure correctness of data handling, serialization, and validation.
 *   **2. Content Hashing & Timestamping Logic (`tech_specs/content_hashing_timestamping_specs.md`)**
     *   **Focus:** Implement the canonicalization procedures and hashing algorithms (SHA-256) for generating `ContentID`s (for `NexusContentObjectV1`), `core_metadata_hash` (for `CoreContentMetadataV1`), and `chunk_id`s (for `DDSChunk`s). Implement logic for handling client-asserted timestamps and preparing for network-validated timestamps.
     *   **Rationale:** Essential for data integrity, uniqueness, and content-addressability before any storage, validation, or retrieval operations can be meaningfully performed. Depends on Step 1 (Core Data Structures).

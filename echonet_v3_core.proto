@@ -4,12 +4,13 @@ package echonet_core.v3;
 
 import "google/protobuf/timestamp.proto";
 import "google/protobuf/any.proto";
+// import "google/protobuf/struct.proto"; // Not strictly needed for core types unless explicitly used for extensions
 
 option go_package = "github.com/your_org/digisocialblock/internal/core/proto/v3;corepbv3";
 
 // --- Enums defined first for clarity and potential cross-message use ---
 
-// Enum defining the type of content.
+// Enum defining the type of content. (From dli_core_data_structures.md)
 enum ContentTypeV1 {
   CONTENT_TYPE_V1_UNSPECIFIED = 0;
   CONTENT_TYPE_V1_ARTICLE = 1;     // Long-form text content
@@ -22,7 +23,7 @@ enum ContentTypeV1 {
   CONTENT_TYPE_V1_GENERIC_FILE = 8;
 }
 
-// Enum defining the type of interaction.
+// Enum defining the type of interaction. (From dli_core_data_structures.md)
 enum InteractionTypeV1 {
   INTERACTION_TYPE_V1_UNSPECIFIED = 0;
   INTERACTION_TYPE_V1_COMMENT = 1;       // A textual comment on content. Payload: CommentPayloadV1
@@ -34,7 +35,7 @@ enum InteractionTypeV1 {
   INTERACTION_TYPE_V1_USER_RELATION = 7; // E.g., Follow, Block. Payload: UserRelationPayloadV1
 }
 
-// Enum defining the type of DLI event being proven.
+// Enum defining the type of DLI event being proven. (From dli_core_data_structures.md & pow_protocol.md)
 enum DLIEventTypeV1 {
   DLI_EVENT_TYPE_V1_UNSPECIFIED = 0;
   DLI_EVENT_TYPE_V1_CONTENT_PUBLISHED = 1;
@@ -42,275 +43,365 @@ enum DLIEventTypeV1 {
   DLI_EVENT_TYPE_V1_USER_OBJECT_CREATED = 3;
   DLI_EVENT_TYPE_V1_USER_OBJECT_UPDATED = 4; // e.g., reputation update, status flag change
   DLI_EVENT_TYPE_V1_GOVERNANCE_VOTE_CAST = 5;
-  // Potentially other system-level events
-  DLI_EVENT_TYPE_V1_DDS_POSR_PROOF = 6; // Added from pow_protocol.md's copy
+  DLI_EVENT_TYPE_V1_DDS_POSR_PROOF = 6;      // Attesting to validity of a PoSR proof itself
+  // Future DLI event types for DID, Consent, Dispute, etc. can be added here.
+  DLI_EVENT_TYPE_V1_DID_REGISTERED = 7;
+  DLI_EVENT_TYPE_V1_DID_UPDATED = 8;
+  DLI_EVENT_TYPE_V1_DID_DEACTIVATED = 9;
+  DLI_EVENT_TYPE_V1_CONSENT_GRANTED = 10;
+  DLI_EVENT_TYPE_V1_CONSENT_REVOKED = 11;
+  DLI_EVENT_TYPE_V1_DISPUTE_OPENED = 12;
+  DLI_EVENT_TYPE_V1_DISPUTE_EVIDENCE_SUBMITTED = 13;
+  DLI_EVENT_TYPE_V1_DISPUTE_CLOSED = 14;
+  DLI_EVENT_TYPE_V1_PARAMETER_UPDATED = 15; // For ProtocolParametersV1 changes
+}
+
+// Enum defining the status of a consent record. (From data_consent_protocol.md)
+enum ConsentStatusV1 {
+  CONSENT_STATUS_V1_UNSPECIFIED = 0; // Should not be used in persisted records
+  GRANTED = 1;                       // Consent is actively granted
+  REVOKED = 2;                       // Consent was previously granted but has been revoked
+  EXPIRED = 3;                       // Consent was time-limited and has passed its expiry
+}
+
+// Enum defining the types of disputes that can be raised. (From dispute_resolution_protocol.md)
+enum DisputeTypeV1 {
+  DISPUTE_TYPE_V1_UNSPECIFIED = 0;
+  MODERATION_ACTION_APPEAL = 1;
+  POP_REWARD_CHALLENGE = 2;
+  AUTOMATED_PENALTY_CHALLENGE = 3;
+}
+
+// Enum defining the status of a dispute case. (From dispute_resolution_protocol.md)
+enum DisputeStatusV1 {
+  DISPUTE_STATUS_V1_UNSPECIFIED = 0;
+  OPEN = 1;
+  EVIDENCE_GATHERING = 2;
+  AWAITING_ADJUDICATION = 3;
+  ADJUDICATION_IN_PROGRESS = 4;
+  RESOLVED_UPHELD = 5;
+  RESOLVED_DISMISSED = 6;
+  RESOLVED_OTHER = 7;
+  ESCALATED = 8;
+  WITHDRAWN = 9;
+}
+
+// Enum defining the possible outcomes of a dispute resolution. (From dispute_resolution_protocol.md)
+enum ResolutionOutcomeV1 {
+  RESOLUTION_OUTCOME_V1_UNSPECIFIED = 0;
+  COMPLAINT_UPHELD = 1;
+  COMPLAINT_DISMISSED = 2;
+  OTHER = 3;
 }
 
 
 // --- Message Definitions ---
 
-// NexusUserObjectV1 represents core, DLI-verifiable attributes of a user.
+// NexusUserObjectV1 represents core, DLI-verifiable attributes of a user. (From dli_core_data_structures.md)
 message NexusUserObjectV1 {
-  // The unique Decentralized Identifier (DID) for the user.
-  // Format: did:echonet:<unique-identifier>
-  // Validation: Required, must match specified DID pattern.
   string user_did = 1; // Conceptual Validation: [(validate.rules).string.pattern = "^did:echonet:[a-zA-Z0-9._%-]+$"];
-
-  // Timestamp of the user's registration on the DLI.
-  // Validation: Required. Must be a valid UTC timestamp.
   google.protobuf.Timestamp registration_timestamp = 2;
-
-  // DLI-computed reputation score.
-  // Managed by PoE (Proof-of-Engagement) and governance logic.
-  // Validation: Cannot be directly set; updated by network processes.
   int64 reputation_score = 3;
-
-  // Bitmask representing user status flags (e.g., isWitness, isStorageProvider).
-  // Enum for flags should be defined and managed globally within the DLI protocol constants.
-  // Example flags (conceptual, actual values TBD by global enum):
-  // 0x0001: IsActive
-  // 0x0002: IsWitnessCandidate
-  // 0x0004: IsWitnessActive
-  // 0x0008: IsStorageProviderCandidate
-  // 0x0010: IsStorageProviderActive
-  // 0x0020: IsModerator (community elected)
   uint32 status_flags = 4;
-
-  // Map of public key entries associated with the user's DID.
-  // Key: Purpose string or Key ID (e.g., "signing", "encryption", "did-doc-key-1").
-  // Value: Bytes representing the public key (e.g., DER-encoded, or raw bytes).
-  // Validation: Keys must be valid public keys of supported types.
   map<string, bytes> public_key_entries = 5;
-
-  // Version of this user object structure. Incremented for breaking changes.
-  uint32 version = 6; // Default to 1 for this version
-
-  // Optional: Pointer/reference to off-DLI extended profile data.
-  // Could be a ContentID of a profile document or an external URL (if allowed by policy).
-  // Validation: If present, must be a valid URI or ContentID.
+  uint32 version = 6; // Default to 1
   string extended_profile_ref = 7;
 }
 
-// Core immutable metadata for content. This structure is hashed to produce core_metadata_hash.
+// Core immutable metadata for content. (From dli_core_data_structures.md)
 message CoreContentMetadataV1 {
-  // Title or name of the content.
-  // Validation: Max length (e.g., 256 chars).
   string title = 1;
-
-  // Brief description or abstract.
-  // Validation: Max length (e.g., 1024 chars).
   string description = 2;
-
-  // Tags or keywords associated with the content.
-  // Validation: Max number of tags (e.g., 20), max length per tag (e.g., 50 chars).
   repeated string tags = 3;
-
-  // Language of the content (e.g., "en-US", "es-ES").
-  // Validation: Must be a valid IETF language tag.
   string language = 4;
-
-  // Custom attributes or application-specific metadata.
-  // Key: Attribute name. Value: Attribute value.
-  // Validation: Limits on key/value length and total size.
   map<string, string> custom_attributes = 5;
-
-  // Timestamp asserted by the client/creator at the time of creation.
-  // Validation: Must be a valid UTC timestamp. Cannot be significantly in the future.
   google.protobuf.Timestamp client_asserted_timestamp = 6;
 }
 
-// NexusContentObjectV1 represents a piece of content on the DLI.
+// NexusContentObjectV1 represents a piece of content on the DLI. (From dli_core_data_structures.md)
 message NexusContentObjectV1 {
-  // The unique identifier for this content object.
-  // Typically a hash of (creator_did + client_asserted_timestamp + core_metadata_hash + body_hash).
-  // Validation: Required, must be a valid hash (e.g., SHA2-256 hex encoded).
   string content_id = 1;
-
-  // DID of the content creator.
-  // Validation: Required, must be a valid did:echonet format.
   string creator_did = 2; // Conceptual Validation: [(validate.rules).string.pattern = "^did:echonet:[a-zA-Z0-9._%-]+$"];
-
-  // Type of the content.
-  // Validation: Required, must be a valid ContentTypeV1 enum value.
   ContentTypeV1 content_type = 3;
-
-  // Cryptographic hash of the canonical CoreContentMetadataV1 structure.
-  // Ensures immutability of this core metadata set.
-  // Validation: Required, must be a valid hash.
   bytes core_metadata_hash = 4;
-
-  // Cryptographic hash of the entire content body (concatenated chunks or single blob).
-  // Validation: Required, must be a valid hash.
   bytes body_hash = 5;
-
-  // Ordered list of identifiers (e.g., hashes) for the chunks comprising the content body.
-  // Used for reconstructing content from Distributed Data Stores (DDS).
-  // Validation: If content is chunked, this is required. Max number of chunks.
   repeated string body_chunk_ids = 6;
-
-  // Size of the original content body in bytes.
-  // Validation: Required, must be >= 0.
   int64 body_size_bytes = 7;
-
-  // Timestamp when this content object was validated and accepted by the network (Witnesses).
-  // Set by the Witness network.
-  // Validation: Cannot be set by client. Must be a valid UTC timestamp.
   google.protobuf.Timestamp network_validated_timestamp = 8;
-
-  // Optional: Pointer/reference to dynamic or mutable metadata not covered by core_metadata_hash.
-  // Could be a ContentID of another NexusContentObjectV1 (e.g., for versioned metadata) or an external link.
-  // Validation: If present, must be a valid URI or ContentID.
   string dynamic_metadata_ref = 9;
-
-  // Version of this content object structure.
-  uint32 version = 10; // Default to 1 for this version
+  uint32 version = 10; // Default to 1
 }
 
-// --- Interaction Payloads ---
-// These are examples and would be packed into google.protobuf.Any in NexusInteractionRecordV1.payload
-
+// --- Interaction Payloads (From dli_core_data_structures.md) ---
 message CommentPayloadV1 {
-  // Text content of the comment.
-  // Validation: Max length (e.g., 4096 chars), sanitization.
   string text = 1;
-  // Optional: reference to content object if comment itself is rich content
-  // Validation: Must be a valid ContentID string (e.g., SHA256 hex).
   string comment_as_content_id = 2; // Conceptual Validation: [(validate.rules).string.pattern = "^[a-f0-9]{64}$"];
 }
 
 message ReactionPayloadV1 {
-  // Identifier for the type of reaction.
-  // e.g., "like", "love", "dislike", "insightful", "funny".
-  // Validation: Must be from a predefined set managed by protocol/governance.
   string reaction_type_id = 1;
 }
 
 message SharePayloadV1 {
-  // Optional: commentary accompanying the share.
-  // Validation: Max length.
   string commentary = 1;
-  // Optional: platform where it was shared (if off-EchoNet and recorded for context).
   string target_platform = 2;
-  // Optional: Original ContentID being shared if this interaction record itself has its own ID.
   string original_content_id = 3; // Conceptual Validation: [(validate.rules).string.pattern = "^[a-f0-9]{64}$"];
 }
 
 message FlagPayloadV1 {
-  // Category for the reason of flagging.
-  // e.g., "spam", "offensive_content", "copyright_infringement", "misinformation".
-  // Validation: Must be from a predefined set managed by protocol/governance.
   string reason_category = 1;
-  // Optional: Additional notes or justification from the flagger.
-  // Validation: Max length.
   string justification_notes = 2;
 }
 
 message TipPayloadV1 {
-  // Identifier of the asset being tipped (e.g., "ECHO_TOKEN" or other supported asset identifiers).
-  // Validation: Required.
   string asset_id = 1;
-  // String representation of the amount to handle large numbers / precision.
-  // Validation: Must be positive numeric.
   string amount_str = 2;
-  // Optional memo for the tip.
-  // Validation: Max length.
   string memo = 3;
 }
 
-// Placeholder for UserRelation specific data, e.g. for Follow/Block
 message UserRelationPayloadV1 {
-  // Type of relation, e.g., "FOLLOW", "BLOCK"
   string relation_type = 1;
-  // Target DID of the relation.
   string target_user_did = 2; // Conceptual Validation: [(validate.rules).string.pattern = "^did:echonet:[a-zA-Z0-9._%-]+$"];
 }
 
-
-// NexusInteractionRecordV1 represents a generic user interaction.
+// NexusInteractionRecordV1 represents a generic user interaction. (From dli_core_data_structures.md)
 message NexusInteractionRecordV1 {
-  // Unique identifier for this interaction.
-  // Typically a hash of (target_content_id (if_any) + actor_did + interaction_type + timestamp + hash(payload)).
-  // Validation: Required, must be a valid hash.
   string interaction_id = 1;
-
-  // Optional: DID of the user performing the interaction.
-  // Can be empty for anonymous interactions if allowed by policy for certain types.
-  // Validation: If present, must be a valid did:echonet format.
   string actor_did = 2; // Conceptual Validation: [(validate.rules).string.pattern = "^did:echonet:[a-zA-Z0-9._%-]+$"];
-
-  // Type of the interaction.
-  // Validation: Required, must be a valid InteractionTypeV1 enum value.
   InteractionTypeV1 interaction_type = 3;
-
-  // Optional: Identifier of the content being interacted with.
-  // Not all interactions target content (e.g., user follow).
-  // Validation: If present, must be a valid ContentID.
   string target_content_id = 4; // Conceptual Validation: [(validate.rules).string.pattern = "^[a-f0-9]{64}$"];
-
-  // Optional: Identifier of another user being interacted with (e.g., for a follow, if not in payload).
-  // Validation: If present, must be a valid did:echonet format.
   string target_user_did = 5; // Conceptual Validation: [(validate.rules).string.pattern = "^did:echonet:[a-zA-Z0-9._%-]+$"];
-
-  // Timestamp when the interaction was recorded by the client/network.
-  // Validation: Required. Must be a valid UTC timestamp.
   google.protobuf.Timestamp timestamp = 6;
-
-  // Specific payload for the interaction type. Use google.protobuf.Any to wrap specific payload messages.
-  // This allows for type safety and extensibility.
-  // Example: For a COMMENT, this would contain a CommentPayloadV1.
-  // Validation: Payload must match interaction_type and pass its specific validation.
   google.protobuf.Any payload = 7;
-
-  // Optional: Identifier of the parent interaction, for threading (e.g., replies to comments).
-  // Validation: If present, must be a valid InteractionID.
   string parent_interaction_id = 8; // Conceptual Validation: [(validate.rules).string.pattern = "^[a-f0-9]{64}$"];
-
-  // Version of this interaction record structure.
-  uint32 version = 9; // Default to 1 for this version
+  uint32 version = 9; // Default to 1
 }
 
-// WitnessProofV1 is the record of validation by a Witness committee.
+// WitnessProofV1 is the record of validation by a Witness committee. (From dli_core_data_structures.md)
 message WitnessProofV1 {
-  // Identifier of the event being validated (e.g., ContentID, InteractionID, UserDID for user updates).
-  // Validation: Required. Format depends on event_type.
   string event_id = 1;
-
-  // Type of the DLI event that was validated.
-  // Validation: Required, must be a valid DLIEventTypeV1 enum value.
   DLIEventTypeV1 event_type = 2;
-
-  // Hash of the event data that was validated by the witnesses.
-  // This ensures that the proof is tied to a specific version/state of the event object.
-  // Validation: Required, must be a valid hash.
   bytes event_data_hash = 3;
-
-  // Timestamp assigned by the Witness committee when consensus on validation was reached.
-  // This is the official "network timestamp" for the event.
-  // Validation: Required. Must be a valid UTC timestamp.
   google.protobuf.Timestamp network_timestamp = 4;
-
-  // Identifier of the Witness committee responsible for this proof.
-  // Could be a hash of the participating witness DIDs or a sequential ID.
-  // Validation: Required.
   string witness_committee_id = 5;
-
-  // List of DIDs of the Witnesses who attested to the event's validity.
-  // These DIDs must correspond to registered and active Witnesses.
-  // Validation: Required, non-empty. Each DID must be a valid did:echonet format.
   repeated string attesting_witness_dids = 6; // Conceptual Validation: [(validate.rules).repeated.min_items = 1];
-
-  // Aggregated cryptographic signature from the attesting Witnesses.
-  // The specific signature scheme (e.g., BLS multi-signature) is defined by network protocol.
-  // Validation: Required. Must be a valid signature verifiable against the attesting_witness_dids' public keys.
   bytes aggregated_signature = 7;
+  bytes specific_proof_data = 8; // Consider google.protobuf.Any if structure is needed
+  uint32 version = 9; // Default to 1
+}
 
-  // Optional: Additional data specific to the proof or event type.
-  // e.g., For PoE, this might include the computed quality score or parameters used.
-  // For content, it might include a reference to a content moderation log if applicable.
-  // Use google.protobuf.Any for type safety if specific structures are defined.
-  // For MVP, this can be raw bytes; specific structures can be defined and packed later.
-  bytes specific_proof_data = 8;
+// --- DDS Protocol Structures (From dds_protocol.md) ---
+message DDSChunk {
+  string chunk_id = 1;
+  bytes data = 2;
+  uint32 sequence_index = 3;
+  uint32 total_chunks = 4;
+}
 
-  // Version of this witness proof structure.
-  uint32 version = 9; // Default to 1 for this version
+message ErasureFragment {
+  string original_chunk_id = 1;
+  uint32 fragment_index = 2;
+  bytes data = 3;
+  uint32 k_value = 4;
+  uint32 m_value = 5;
+  bytes original_chunk_hash = 6;
+}
+
+message StorageChallengeRequest {
+  string challenge_id = 1;
+  string chunk_id = 2;
+  bytes challenge_payload = 3;
+  google.protobuf.Timestamp deadline = 4;
+}
+
+message StorageChallengeResponse {
+  string challenge_id = 1;
+  string chunk_id = 2;
+  bytes proof_payload = 3;
+  string node_did = 4;
+  bytes node_signature = 5;
+}
+
+message DDSProtocolError {
+  int32 code = 1;
+  string message = 2;
+  string details = 3;
+}
+
+// --- PoW Protocol Structures (From pow_protocol.md) ---
+message WitnessAttestationV1 {
+  bytes event_digest = 1;
+  DLIEventTypeV1 event_type = 2; // Already defined above
+  bool is_valid = 3;
+  string witness_did = 4; // Conceptual Validation: [(validate.rules).string.pattern = "^did:echonet:[a-zA-Z0-9._%-]+$"];
+  google.protobuf.Timestamp witness_timestamp = 5;
+  bytes witness_signature = 6;
+  int64 poe_quality_score = 7;
+  string validation_error_code = 8;
+  bytes vrf_hash = 9;
+  bytes vrf_proof = 10;
+}
+
+// --- DID Method Structures (From did_echonet_method.md) ---
+message VerificationMethod {
+  string id = 1;
+  string type = 2;
+  string controller = 3;
+  string public_key_multibase = 4;
+}
+
+message Service {
+  string id = 1;
+  string type = 2;
+  string service_endpoint = 3;
+}
+
+message NexusDIDDocumentV1 {
+  string id = 1;
+  repeated string controller = 2;
+  string previous_version_id = 3;
+  repeated VerificationMethod verification_method = 4;
+  repeated string authentication = 5;    // References VerificationMethod.id
+  repeated string assertion_method = 6;  // References VerificationMethod.id
+  repeated string key_agreement = 7;     // References VerificationMethod.id
+  repeated Service service = 8;
+  google.protobuf.Timestamp created = 9;
+  google.protobuf.Timestamp updated = 10;
+  string version_id = 11;
+  string nexus_user_object_ref = 12; // ContentID of NexusUserObjectV1
+}
+
+// --- Data Consent Protocol Structures (From data_consent_protocol.md) ---
+message NexusConsentRecordV1 {
+  string consent_id = 1;
+  string grantor_did = 2; // Conceptual Validation: [(validate.rules).string.pattern = "^did:echonet:[a-zA-Z0-9._%-]+$"];
+  string grantee_did = 3; // Conceptual Validation: [(validate.rules).string.pattern = "^did:echonet:[a-zA-Z0-9._%-:]+$"];
+  string data_category_ref = 4;
+  repeated string specific_data_pointers = 5;
+  ConsentStatusV1 status = 6; // Enum defined above
+  google.protobuf.Timestamp granted_timestamp = 7;
+  google.protobuf.Timestamp revoked_timestamp = 8;
+  google.protobuf.Timestamp expiry_timestamp = 9;
+  string terms_hash = 10;
+  bytes grantor_signature = 11;
+  string record_schema_version = 12; // e.g., "1.0.0"
+}
+
+// --- PoE Protocol Structures (From poe_protocol.md) ---
+message PoEScoreFactorsV1 {
+  double actor_reputation_weight = 1;
+  int64 min_reputation_for_reward = 2;
+  double comment_base_score = 10;
+  double comment_length_char_weight = 11;
+  uint32 comment_max_chars_for_length_score = 12;
+  double comment_high_rep_upvote_bonus = 13;
+  // double comment_semantic_quality_weight = 14; // Placeholder
+  map<string, double> quality_reaction_base_scores = 20;
+  uint32 reaction_consensus_threshold = 21;
+  double reaction_consensus_bonus_multiplier = 22;
+  double share_base_score = 30;
+  double share_downstream_view_multiplier = 31;
+  double share_downstream_interaction_multiplier = 32;
+  uint64 share_attribution_window_seconds = 33;
+  double flag_accuracy_confirmed_bonus = 40;
+  double flag_malicious_penalty_factor = 41;
+  double min_poe_score_for_reward = 50;
+  // double global_poe_decay_factor_per_day = 51; // Placeholder
+  string factors_schema_version = 99; // e.g., "1.0.0"
+}
+
+// --- AI/ML Integration Structures (From ai_ml_integration_points.md) ---
+message AIContentQualitySignalV1 {
+  float readability_score = 1;
+  float coherence_score = 2;
+  float originality_heuristic_score = 3;
+  map<string, float> policy_violation_scores = 4;
+  float topic_relevance_score = 5;
+  float overall_quality_score = 6;
+}
+
+message AIInteractionQualitySignalV1 {
+  float sentiment_score = 1;
+  float constructiveness_score = 2;
+  float spam_likelihood_score = 3;
+  float relevance_score = 4;
+  float toxicity_score = 5;
+}
+
+message AIAnomalySignalV1 {
+  float sybil_likelihood_score = 1;
+  float bot_activity_score = 2;
+  float coordinated_behavior_score = 3;
+}
+
+// --- Dispute Resolution Structures (From dispute_resolution_protocol.md) ---
+message EvidenceV1 {
+  string evidence_id = 1;
+  string submitter_did = 2;
+  google.protobuf.Timestamp submission_timestamp = 3;
+  string description = 4;
+  string data_ref = 5; // ContentID of evidence data
+  bytes submitter_signature = 6;
+}
+
+message ResolutionV1 {
+  ResolutionOutcomeV1 outcome = 1; // Enum defined above
+  string resolution_details = 2;
+  string adjudicator_ref = 3;
+  google.protobuf.Timestamp resolution_timestamp = 4;
+  bytes adjudicator_signature = 5;
+}
+
+message DisputeCaseV1 {
+  string case_id = 1;
+  DisputeTypeV1 dispute_type = 2; // Enum defined above
+  string subject_ref = 3;
+  string complainant_did = 4;
+  repeated string respondent_dids = 5;
+  string description = 6;
+  repeated string evidence_refs = 7; // List of ContentIDs for EvidenceV1 objects
+  DisputeStatusV1 status = 8; // Enum defined above
+  google.protobuf.Timestamp opened_timestamp = 9;
+  google.protobuf.Timestamp closed_timestamp = 10;
+  ResolutionV1 resolution = 11;
+  string record_schema_version = 12; // e.g., "1.0.0"
+}
+
+// --- Constitutional Framework / Parameters (From constitutional_framework_spec.md) ---
+message ProtocolParametersV1 {
+  // PoW Parameters
+  int32 target_witness_committee_size_n = 1;
+  int32 required_attestations_m = 2;
+  int64 witness_registration_stake_min = 3;
+  int64 witness_deregistration_lockup_seconds = 4;
+  int32 witness_max_events_per_epoch = 5;
+
+  // DDS Parameters
+  int32 default_dds_replication_factor_r = 11;
+  int32 default_dds_erasure_k = 12;
+  int32 default_dds_erasure_m = 13;
+  int64 dds_storage_fee_per_kb_year = 14;
+
+  // PoE Parameters
+  string active_poe_score_factors_ref = 21; // ContentID or version string of PoEScoreFactorsV1
+  int64 poe_reward_pool_period_allocation = 22;
+  int64 poe_min_actor_reputation_for_reward = 23;
+  double poe_min_interaction_score_for_reward = 24;
+
+  // Governance Parameters
+  int64 proposal_submission_deposit = 31;
+  int32 proposal_voting_period_duration_seconds = 32;
+  double proposal_quorum_threshold_percentage = 33;
+  double proposal_approval_threshold_percentage = 34;
+
+  // Fee & Economic Parameters
+  int64 base_dli_transaction_fee = 41;
+  double fee_burn_percentage = 42;
+  double fee_to_witnesses_percentage = 43;
+
+  // Dispute Resolution Parameters
+  int64 dispute_opening_fee = 51;
+  int32 dispute_evidence_period_seconds = 52;
+
+  string parameters_schema_version = 100; // e.g., "1.0.0"
 }

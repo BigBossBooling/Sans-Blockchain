@@ -10,6 +10,8 @@ This document presents the Overall Minimal Viable Product (MVP) Implementation R
 1.  **Module 1: Core DLI Functionality** (from `implementation_plans/dli_core_mvp_plan.md`)
 2.  **Module 2: Identity & Privacy Features** (from `implementation_plans/identity_privacy_mvp_plan.md`)
 3.  **Module 3: Content Validation & Incentives (Initial PoE & AI Stubs)** (from `implementation_plans/content_validation_mvp_plan.md`)
+4.  **Module 4: Decentralized Governance (MVP Aspects)** (conceptually covered, drawing from `implementation_plans/governance_mvp_plan.md`)
+
 
 This roadmap aims to provide a coherent, phased approach to developing and integrating these core components to achieve a demonstrable and valuable initial version of the EchoNet platform.
 
@@ -53,7 +55,7 @@ Adherence to these principles will help ensure the MVP is robust, focused, and p
 The development of the EchoNet MVP operates under the following key assumptions:
 
 *   **Technical Foundation:**
-    *   The MVP will be built upon the EchoNet v3.0 conceptual architecture and the detailed technical specifications outlined in the `tech_specs/*.md` documents (covering DLI core data structures, DDS protocol, PoW protocol, content hashing/timestamping, mobile node considerations, DID method, data consent protocol, PoE protocol, and AI/ML integration points).
+    *   The MVP will be built upon the EchoNet v3.0 conceptual architecture and the detailed technical specifications outlined in the `tech_specs/*.md` documents (covering DLI core data structures, DDS protocol, PoW protocol, content hashing/timestamping, mobile node considerations, DID method, data consent protocol, PoE protocol, AI/ML integration points, governance framework, dispute resolution, and constitutional framework).
 *   **Technology Stack (Conceptual - for MVDLI and initial modules):**
     *   **Primary Language for DLI Core & P2P Networking:** Go (Golang), chosen for its concurrency features, performance, and strong ecosystem for P2P systems.
     *   **P2P Networking Library:** go-libp2p, for its modularity and comprehensive P2P capabilities.
@@ -63,7 +65,7 @@ The development of the EchoNet MVP operates under the following key assumptions:
 *   **Resource Availability (Conceptual):**
     *   It is assumed that a development team with the necessary skills in Go, distributed systems, P2P networking, cryptography, and the specific libraries (libp2p, Protobufs) will be available. (Specific team size, roles, and funding are outside the scope of this technical roadmap but are critical project management considerations).
 *   **MVP Scope Adherence:**
-    *   Development efforts will strictly focus on the features and functionalities defined within the scope of the three integrated MVP plans (`dli_core_mvp_plan.md`, `identity_privacy_mvp_plan.md`, `content_validation_mvp_plan.md`). More advanced features, optimizations, and full-scale implementations will be deferred to post-MVP iterations.
+    *   Development efforts will strictly focus on the features and functionalities defined within the scope of the integrated MVP plans (covering Modules 1-4 as outlined in this document). More advanced features, optimizations, and full-scale implementations will be deferred to post-MVP iterations.
 *   **Iterative Development:**
     *   The overall MVP is the first major deliverable in a series of iterative development cycles. Feedback gathered from testing and deploying the MVP will be crucial for refining existing features and prioritizing future development.
 *   **CI/CD & Testing Practices:**
@@ -177,9 +179,48 @@ With the DLI core and Identity/Privacy layers in place, the initial features for
 
 This sequence builds the initial content validation and user incentive mechanisms on top of the established DLI and identity foundations.
 
-### 4.4. Conceptual Visual Dependency Chart Outline
+### 4.4. Decentralized Governance Integration Sequence (Module 4 MVP)
 
-To provide a clear visual overview of the inter-task and inter-module dependencies outlined in sections 4.1, 4.2, and 4.3, a dependency chart should be created. This section outlines what such a chart would represent.
+Following the establishment of the DLI core, identity, and initial engagement (PoE/reputation) systems, the MVP for decentralized governance (as detailed in `implementation_plans/governance_mvp_plan.md`) can be integrated. This allows the community to begin participating in the evolution of the platform.
+
+*   **1. Core Governance Data Structures (Task G1 from Governance MVP Plan):**
+    *   **Focus:** Implement Protobuf definitions for MVP-scoped versions of `NexusProposalV1` (for text and simple parameter changes), `VoteV1`, and the governable subset of `ProtocolParametersV1`.
+    *   **Rationale:** These are the foundational data types for governance operations. Depends on Module 1 (Core Data Structures - for base types like DID, Timestamp).
+    *   **Key Deliverable:** Implemented and unit-tested governance data structure libraries.
+*   **2. Basic `ProposalLifecycleManagerV1` Logic (Task G2 from Governance MVP Plan):**
+    *   **Focus:** Implement DLI-native logic for submitting text and simple parameter change proposals, basic validation of proposal structure, and managing proposal state transitions (e.g., Submitted -> ActiveVoting -> VotingEnded).
+    *   **Rationale:** Enables the creation and tracking of governance proposals. Depends on G1, and MVDLI PoW (Module 1) for DLI event validation.
+    *   **Key Deliverable:** Logic for proposal submission and state management operational within DLI nodes.
+*   **3. Basic `VotingManagerV1` Logic (Task G3 from Governance MVP Plan):**
+    *   **Focus:** Implement DLI-native logic for vote casting (1 DID, 1 vote, weighted by `NexusUserObjectV1.reputationScore` snapshotted at vote start), vote tallying (sum of weighted votes), and outcome determination based on simple majority and fixed quorum.
+    *   **Rationale:** Enables the core voting process. Depends on G1, G2, MVDLI PoW (Module 1), and critically on `NexusUserObjectV1.reputationScore` from Module 2 (Identity & Privacy) and Module 3 (PoE for reputation updates).
+    *   **Key Deliverable:** DIDs can cast weighted votes on active proposals; votes are tallied, and outcomes determined.
+*   **4. Basic `ParameterManagerV1` Logic (Task G4 from Governance MVP Plan):**
+    *   **Focus:** Allow 1-2 predefined non-critical DLI parameters (from `ProtocolParametersV1`) to be updatable. Implement logic to apply the parameter change to the DLI state upon a passed governance proposal.
+    *   **Rationale:** Demonstrates the ability of governance to modify protocol parameters. Depends on G3 (for successful proposal outcome).
+    *   **Key Deliverable:** Successful parameter change proposal leads to an update in the DLI's active parameter set. `ParameterUpdatedEvent` emitted.
+*   **5. DLI State Integration for Governance (Task G5 from Governance MVP Plan):**
+    *   **Focus:** Ensure governance state (proposals, votes, current parameters) is stored and retrievable from the MVDLI's state mechanism (e.g., embedded KV store).
+    *   **Rationale:** Makes governance information persistent and queryable. Depends on G1-G4.
+    *   **Key Deliverable:** Governance state persisted and accessible.
+*   **6. Witness Validation for Governance Events (Task G6 from Governance MVP Plan):**
+    *   **Focus:** Extend MVDLI Witness logic to validate new DLI event types for proposal submission, vote casting, and parameter update execution triggers.
+    *   **Rationale:** Ensures the integrity of governance operations. Depends on MVDLI PoW (Module 1) and the specific logic of G2, G3, G4.
+    *   **Key Deliverable:** MVDLI Witnesses validate all governance-related DLI events.
+*   **7. Client-Side Interaction (CLI / Test Application - Task G7 from Governance MVP Plan):**
+    *   **Focus:** Extend the test client/CLI to allow submitting proposals, listing active proposals, casting votes, querying proposal outcomes, and viewing current values of governable parameters.
+    *   **Rationale:** Provides the means to interact with and test the Governance MVP features. Depends on all preceding steps in this Module 4 sequence.
+    *   **Key Deliverable:** Test client/CLI supports all basic governance MVP user stories.
+*   **8. Unit Tests for Governance MVP Components (Task G8 from Governance MVP Plan):**
+    *   **Focus:** Implement unit tests for the MVP-scoped features of `ProposalLifecycleManagerV1`, `VotingManagerV1`, and `ParameterManagerV1` as per `testing_strategies/governance_unit_tests_strategy.md`.
+    *   **Rationale:** Ensures core governance logic is robust and correct. Depends on G2, G3, G4.
+    *   **Key Deliverable:** Comprehensive unit tests for implemented governance logic.
+
+This sequence introduces basic on-DLI governance capabilities after the core DLI, identity, and initial engagement/reputation systems are in place.
+
+### 4.5. Conceptual Visual Dependency Chart Outline
+
+To provide a clear visual overview of the inter-task and inter-module dependencies outlined in sections 4.1, 4.2, 4.3, and 4.4, a dependency chart should be created. This section outlines what such a chart would represent.
 
 *   **Purpose of the Visual Chart:**
     *   To offer an at-a-glance understanding of the development flow for the entire EchoNet MVP.
@@ -192,11 +233,11 @@ To provide a clear visual overview of the inter-task and inter-module dependenci
     *   Alternatively, a simpler **flowchart** or **swimlane diagram** (if wanting to also show team/responsibility areas) could be used, focusing on clear dependency lines.
 
 *   **Key Elements to Include in the Chart:**
-    *   **Nodes/Boxes:** Each major task or deliverable from the sequences defined in sections 4.1, 4.2, and 4.3 (e.g., "M1_T1: Core Data Structures," "M2_T2: DID Registration," "M3_T4: AI Stub Integration"). Task numbering (Module_Task) should be used for clarity.
+    *   **Nodes/Boxes:** Each major task or deliverable from the sequences defined in sections 4.1, 4.2, 4.3, and 4.4 (e.g., "M1_T1: Core Data Structures," "M2_T2: DID Registration," "M3_T4: AI Stub Integration," "M4_T3: Basic Voting Logic"). Task numbering (Module_Task) should be used for clarity.
     *   **Arrows/Lines:** Clearly indicate dependencies between tasks. An arrow from Task A to Task B means Task A must be completed before Task B can start.
     *   **Critical Path:** Highlight the sequence of tasks that directly determines the minimum time required to complete the entire MVP.
     *   **Parallel Streams:** Visually group or arrange tasks that can be worked on concurrently. For example, client-side DID library development (M2_T1) can occur in parallel with some early MVDLI P2P setup (M1_T3).
-    *   **Module Grouping:** Optionally, use color-coding or swimlanes to visually distinguish tasks belonging to Module 1 (DLI Core), Module 2 (Identity/Privacy), and Module 3 (Content/Monetization).
+    *   **Module Grouping:** Optionally, use color-coding or swimlanes to visually distinguish tasks belonging to Module 1 (DLI Core), Module 2 (Identity/Privacy), Module 3 (Content/Monetization), and Module 4 (Governance).
 
 *   **Tooling for Actual Generation (Note):**
     *   The actual visual chart is not generated in this markdown document. It would be created using specialized diagramming software (e.g., Lucidchart, Microsoft Visio, diagrams.net / draw.io), project management tools with Gantt/PERT capabilities, or code-based diagramming tools like Mermaid.js (which can be embedded in markdown later). This section serves as the specification for *what* the chart should convey.
@@ -211,6 +252,12 @@ To provide a clear visual overview of the inter-task and inter-module dependenci
     *   **Task Name:** Reputation Score Update (`NexusUserObjectV1`)
     *   **Depends On:** M3_T2 (Basic PoE Scoring) OR M3_T4 (AI Stub Integration if AI signal directly impacts score), M2_T4 (Basic `NexusUserObjectV1` Creation)
     *   *(This shows dependencies within the same module and on a previous module.)*
+
+    *   **Task ID:** M4_T3
+    *   **Task Name:** Basic `VotingManagerV1` Logic
+    *   **Depends On:** M4_T1 (Core Gov Data Structures), M4_T2 (Basic Proposal Lifecycle), M2_T4 (Basic `NexusUserObjectV1` Creation for reputation scores), M3_T5 (Reputation Score Update logic for PoP-derived reputation)
+    *   *(This shows dependencies on previous modules and tasks within the governance module itself.)*
+
 
 This visual chart will be a valuable companion to the textual roadmap, aiding project managers, developers, and stakeholders in understanding the overall MVP implementation flow.
 
@@ -280,13 +327,62 @@ The detailed task deliverables are outlined in Section 4. Here, we group them in
     *   Key Deliverables: Logged output demonstrating the conceptual reward calculation based on test interactions and their PoE scores.
     *   *Depends on M3.A. Corresponds to completing M3 tasks 6-7.*
 
+**Decentralized Governance Layer Milestones (Module 4 MVP)**
+*   **Milestone M4.A: Basic Proposal & Parameter Change System Operational**
+    *   Description: Users (via test client/CLI) can submit simple text proposals and proposals to change predefined, non-critical DLI parameters. A basic PoP/reputation-weighted voting mechanism is used, votes are tallied, and outcomes determined. Successful parameter change proposals result in updates to the DLI state.
+    *   Key Deliverables: Functional proposal submission for text/parameter changes; DIDs can vote with reputation-derived weight; votes tallied and outcomes decided; DLI parameters updated via governance; CLI support for these actions.
+    *   *Depends on M1.B (core DLI), M2.A (DIDs), M3.A (Reputation for voting weight). Corresponds to completing approximately G1-G8 from `implementation_plans/governance_mvp_plan.md`.*
+
 **Overall EchoNet MVP v0.1 Completion:**
-*   **Description:** All above milestones (M1.A, M1.B, M2.A, M2.B, M3.A, M3.B) are achieved. The system demonstrates a basic but complete end-to-end flow: user identity creation, content publication, content discovery, interaction with content, PoE scoring of interactions, reputation updates, and conceptual logging of rewards.
-*   **Key Deliverables:** A functional, integrated DLI network running on test nodes with a CLI client capable of exercising all core MVP features. Comprehensive test suite and initial documentation.
+*   **Description:** All above milestones (M1.A, M1.B, M2.A, M2.B, M3.A, M3.B, **and M4.A**) are achieved. The system demonstrates a basic but complete end-to-end flow: user identity creation, content publication and interaction, PoE scoring and reputation updates, conceptual reward logging, and basic on-DLI governance for proposals and parameter changes.
+*   **Key Deliverables:** A functional, integrated DLI network running on test nodes with a CLI client capable of exercising all core MVP features including basic governance. Comprehensive test suite and initial documentation.
 
-### 6.2. Conceptual Phasing & Timeline
+### 6.2. Overall MVP Scope & Core Deliverables
 
-While specific calendar dates are subject to team size, velocity, and unforeseen challenges, a conceptual phasing helps visualize the MVP progression. We can define three main phases for the overall MVP development:
+This section clarifies the unified scope and key deliverables for the entire EchoNet MVP v0.1, synthesizing the goals of individual module MVPs.
+
+**User-Facing Core Value & Capabilities:**
+The EchoNet MVP v0.1 will allow users (interacting via a test client/CLI) to:
+*   Create and manage a decentralized identity (`did:echonet`), including generating key pairs and a basic DID Document.
+*   Publish basic text-based content (`NexusContentObjectV1`) to the decentralized network, have it validated by Witnesses, and stored on rudimentary Distributed Data Stores (DDS).
+*   Discover and view content published by themselves or others using `ContentID`s.
+*   Perform basic social interactions on content, such as posting comments or "quality reactions" (`NexusInteractionRecordV1`).
+*   Accrue conceptual Proof-of-Engagement (PoE) scores based on these interactions, which will influence their on-DLI reputation score (`NexusUserObjectV1.reputationScore`). (Scores are logged; no real token movement for rewards in this MVP).
+*   Grant and revoke a basic type of data consent for their information using `NexusConsentRecordV1`, with the status being queryable.
+*   Participate in basic on-DLI governance by:
+    *   Submitting simple text proposals or proposals to change predefined, non-critical DLI parameters.
+    *   Viewing active proposals.
+    *   Voting on active proposals using their PoP-derived reputation score as voting weight.
+    *   Viewing the outcome of proposals.
+*   Experience these interactions through a foundational DLI where data is stored decentrally and validated by a simplified consensus mechanism, including basic mobile client interactions as a 'Host' (conceptually tested via CLI).
+
+**Key Technical Deliverables (Summarized):**
+*   A functional, interconnected MVDLI network composed of nodes capable of P2P communication, event gossip, and basic DHT operations (simulated or small testnet).
+*   Implemented and tested core data structures (e.g., `NexusContentObjectV1`, `NexusInteractionRecordV1`, `NexusUserObjectV1`, `NexusDIDDocumentV1`, `NexusConsentRecordV1`, `NexusProposalV1`, `VoteV1`, `WitnessProofV1`, `ProtocolParametersV1` subset).
+*   Operational (though rudimentary for MVP) core DLI protocols:
+    *   Distributed Data Stores (DDS) for basic chunk storage and retrieval.
+    *   Proof-of-Witness (PoW) consensus for DLI event validation by a fixed set of Witnesses.
+    *   Discovery Protocol (DHT) for basic content and DID Document resolution.
+*   Functional DID lifecycle: client-side DID/key generation, DLI registration of DID Documents, and DLI resolution of DID Documents.
+*   Functional basic Data Consent lifecycle: client-side consent grant/revoke operations, DLI validation, and a rudimentary, queryable Consent Registry.
+*   Functional (rudimentary) Proof-of-Engagement (PoE) scoring for specific interactions, updates to on-DLI reputation scores, and conceptual logging of potential rewards.
+*   Functional basic Decentralized Governance: submission of text/parameter change proposals, PoP/reputation-weighted voting, vote tallying, outcome determination, and DLI parameter updates.
+*   A basic Command Line Interface (CLI) or test client application capable of demonstrating these core user stories and DLI functionalities.
+*   Unit and initial integration tests for all core components, run as part of a CI pipeline.
+
+**Explicit Non-Goals for this Overall MVP v0.1 (reiterated):**
+*   Full token-based economy, actual token generation (TGE), or on-DLI value transfer for PoE rewards or any other purpose.
+*   Advanced or production-ready AI/ML models for content/interaction analysis (only stubs for integration testing).
+*   A complex advertising marketplace or direct creator monetization channels beyond conceptual PoE.
+*   Full suite of mobile node roles (Super-Host, Decelerator, Mobile Witness) or a polished native mobile application.
+*   Sophisticated or dynamic governance mechanisms (e.g., complex voting systems, treasury management, automated NIP execution, advanced dispute resolution).
+*   Large-scale performance, stress testing, or comprehensive security hardening beyond foundational best practices.
+*   User-friendly graphical interfaces (GUIs) for end-users or node operators.
+*   Full implementation of all aspects of all `tech_specs` documents; only MVP-scoped items are included.
+
+### 6.3. Conceptual Phasing & Timeline
+
+While specific calendar dates are subject to team size, velocity, and unforeseen challenges, a conceptual phasing helps visualize the MVP progression. We can define main phases for the overall MVP development:
 
 *   **Phase A: DLI Core Bootstrap (Focus: Milestones M1.A)**
     *   **Duration (Notional):** e.g., Sprints 0-3 / "Month 1-2"
@@ -308,8 +404,8 @@ While specific calendar dates are subject to team size, velocity, and unforeseen
         *   Basic `NexusUserObjectV1` creation (M2_T4), achieving M2.A.
     *   **Goal:** A fully operational MVDLI where content can be published, validated, stored, and discovered. Users can create and resolve DIDs on this MVDLI.
 
-*   **Phase C: Integrating Privacy & Engagement Loops (Focus: Milestones M2.B, M3.A, M3.B)**
-    *   **Duration (Notional):** e.g., Sprints 8-10 / "Month 4-5"
+*   **Phase C: Integrating Privacy, Engagement & Initial Governance Loops (Focus: Milestones M2.B, M3.A, M3.B, M4.A)**
+    *   **Duration (Notional):** e.g., Sprints 8-12 / "Month 4-6"
     *   **Primary Activities:**
         *   Implementation of Data Consent DLI events and basic Consent Registry (M2_T5, M2_T6), achieving M2.B.
         *   Development of PoE-eligible interaction processing and basic PoE Quality Scoring by Witnesses (M3_T1, M3_T2).
@@ -317,11 +413,13 @@ While specific calendar dates are subject to team size, velocity, and unforeseen
         *   Reputation score updates based on PoE (M3_T5), achieving M3.A.
         *   Rudimentary (logged) PoE reward distribution logic (M3_T6).
         *   Extension of CLI/test client for PoE interactions (M3_T7), achieving M3.B.
-    *   **Goal:** Demonstrate the core mechanics of user consent, content engagement scoring, reputation updates, and the conceptual reward loop. This completes the overall MVP v0.1.
+        *   Implementation of core Governance MVP tasks (G1-G8 from `implementation_plans/governance_mvp_plan.md`), achieving M4.A.
+    *   **Goal:** Demonstrate the core mechanics of user consent, content engagement scoring, reputation updates, conceptual reward logging, and basic on-DLI governance. This completes the overall MVP v0.1.
 
 **Note on Parallelism:**
 *   Client-side library work (e.g., M2_T1 for DID functions) can often start earlier, in parallel with foundational DLI P2P/DDS work, as long as data structure contracts are stable.
 *   The `AIOracleService` stub (M3_T3) can be developed independently once its interface is agreed upon.
+*   Core governance data structures (G1) can be developed in parallel with later stages of Phase B.
 
 This phased approach allows for iterative testing and integration, ensuring each layer is functional before building more complex features on top. The notional durations are for illustrative purposes only and would be refined during actual project planning.
 
@@ -334,34 +432,36 @@ A comprehensive testing strategy is crucial for ensuring the quality, reliabilit
     *   Development will be guided by TDD/BDD principles where applicable. Unit tests will be written before or concurrently with feature code to define and verify component behavior.
 *   **Unit Tests:**
     *   **Focus:** Verify the correctness of individual functions, methods, modules, and data structures in isolation.
-    *   **Examples:** Testing canonicalization and hashing functions, data structure serialization/deserialization, signature generation/verification, individual RPC handlers (with mocks), PoE scoring formula logic.
+    *   **Examples:** Testing canonicalization and hashing functions, data structure serialization/deserialization, signature generation/verification, individual RPC handlers (with mocks), PoE scoring formula logic, governance proposal validation.
     *   **Tools:** Standard Go testing package, `testify/assert` for assertions.
 *   **Integration Tests:**
     *   **Focus:** Verify the interaction between different components within a single node or service, and between closely related DLI core modules.
     *   **Examples:**
         *   Testing the flow from an RPC call to a DDS node through its internal logic to storage.
-        *   Verifying that Witness PoW logic correctly processes and validates a DLI event using local data structures and cryptographic utilities.
-        *   Ensuring the DID client library correctly interfaces with local key storage.
+        *   Verifying that Witness PoW logic correctly processes and validates various DLI event types (content, DID, consent, governance) using local data structures and cryptographic utilities.
+        *   Ensuring the DID client library correctly interfaces with local key storage and DLI registration events.
+        *   Testing PoE scoring integration with reputation updates.
     *   **Tools:** Go testing package, potentially using in-memory versions of dependencies or mocks.
 *   **Simulated Network Tests (Multi-Node):**
     *   **Focus:** Verify interactions between multiple DLI nodes in a controlled, simulated P2P network environment.
     *   **Examples:**
         *   Testing P2P node discovery (mDNS, DHT bootstrap).
-        *   Verifying event gossip and pub/sub mechanisms.
+        *   Verifying event gossip and pub/sub mechanisms for all DLI event types.
         *   Testing DDS chunk storage and retrieval across different nodes.
-        *   Validating the PoW consensus flow with multiple Witnesses.
-        *   Testing DHT PUT/GET operations for content and DID resolution.
-        *   Simulating basic mobile host client interactions with network nodes.
+        *   Validating the PoW consensus flow with multiple Witnesses for all DLI event types.
+        *   Testing DHT PUT/GET operations for content, DID resolution, and consent registry.
+        *   Simulating governance proposal lifecycle across multiple nodes.
     *   **Tools:** Libp2p's testing utilities (e.g., `p2p/tools/tester`), custom test harnesses using Docker to orchestrate multiple node instances.
 *   **End-to-End (E2E) Tests:**
     *   **Focus:** Verify complete user stories and functional flows from the perspective of an end-user (simulated via the CLI/test client for the MVP).
     *   **Examples:**
-        *   Full lifecycle: User generates DID -> Publishes content (text + chunks) -> Content is validated by Witnesses -> Content is stored on DDS -> Content is discoverable via DHT -> Another user resolves DID and retrieves content.
-        *   User grants consent -> Service queries and verifies consent -> User revokes consent -> Service query reflects revocation.
-        *   User posts a comment -> Comment gets PoE score -> User's reputation is updated (verified via query or log).
-    *   **Tools:** The CLI/test client application developed as part of the MVDLI (Module 1, Task 7) will be the primary driver for E2E tests, with scripts automating command sequences and verifying outputs/ DLI state changes.
+        *   Full lifecycle: User generates DID -> Publishes content -> Content validated & stored -> Discoverable -> Another user resolves DID & retrieves content.
+        *   User grants/revokes consent -> Service queries consent -> Status reflected.
+        *   User posts comment -> PoE score generated -> Reputation updated -> Conceptual reward logged.
+        *   User submits governance proposal -> Other users vote -> Proposal outcome determined -> Parameter (if applicable) updated.
+    *   **Tools:** The CLI/test client application will be the primary driver for E2E tests, with scripts automating command sequences and verifying outputs/ DLI state changes.
 *   **Continuous Integration (CI):**
-    *   The CI pipeline (as per `echonet_v3_cicd_strategy.md`) will automatically run linters, unit tests, and potentially some integration tests on every commit or pull request.
+    *   The CI pipeline (as per `echonet_v3_cicd_strategy.md` and Section 8.1) will automatically run linters, unit tests, and potentially some integration tests on every commit or pull request.
     *   Regular (e.g., nightly) automated runs of more comprehensive integration and simulated network tests.
 
 This multi-layered testing approach aims to catch issues early, ensure components integrate correctly, and validate that the overall MVP meets its functional requirements.
@@ -372,7 +472,7 @@ This section details how overarching development practices and specific tooling 
 
 ### 8.1. CI/CD Pipeline Integration Across MVP Modules
 
-The Continuous Integration/Continuous Deployment (CI/CD) pipeline strategy, as defined in `echonet_v3_cicd_strategy.md`, will be integral to the MVP development process for all modules (DLI Core, Identity & Privacy, Content Validation & Incentives).
+The Continuous Integration/Continuous Deployment (CI/CD) pipeline strategy, as defined in `echonet_v3_cicd_strategy.md`, will be integral to the MVP development process for all modules (DLI Core, Identity & Privacy, Content Validation & Incentives, Governance).
 
 *   **Reiteration of CI/CD Goals for MVP:**
     *   **Rapid Feedback:** Provide developers with quick feedback on their changes.
@@ -396,11 +496,11 @@ The Continuous Integration/Continuous Deployment (CI/CD) pipeline strategy, as d
         *   Go: `go vet`, `staticcheck`, and other tools included in `golangci-lint`.
         *   (If Python utils exist): MyPy for type checking, Bandit for security analysis.
     *   **3. Unit Testing:**
-        *   All new code for MVP modules (DLI core logic, DID library functions, PoE scoring algorithms, etc.) must be accompanied by comprehensive unit tests.
+        *   All new code for MVP modules (DLI core logic, DID library functions, PoE scoring algorithms, governance logic etc.) must be accompanied by comprehensive unit tests.
         *   Enforce code coverage checks (e.g., using Go's built-in coverage tools). Aim for a minimum coverage threshold (e.g., >80%) for core, critical logic. Test failures will block PR merging.
     *   **4. Integration Testing (MVP Scope - Automated in CI):**
         *   Focus on automated tests for interactions *between components of the same module* initially (e.g., testing DDS RPC handlers with an in-memory storage backend within a single test process).
-        *   As modules mature, introduce tests for interactions *between the three core MVP modules* (e.g., DID registration event triggering PoW validation and DDS storage).
+        *   As modules mature, introduce tests for interactions *between the core MVP modules* (e.g., DID registration event triggering PoW validation and DDS storage; PoE scoring using DID reputation).
         *   Mock external dependencies or modules that are not yet built or are outside the immediate test scope.
     *   **5. Security Scanning (Automated):**
         *   **SAST (Static Application Security Testing):** `gosec` for Go code.
@@ -410,11 +510,11 @@ The Continuous Integration/Continuous Deployment (CI/CD) pipeline strategy, as d
 *   **Post-Merge/Main Branch Pipeline for MVP (Simulated Testnet Environment):**
     *   Triggered automatically after a PR is merged into the `develop` branch (and eventually for releases tagged from `main`).
     *   **1. Automated Deployment to Simulated Testnet:**
-        *   Build fresh Docker images for DLI nodes (incorporating MVDLI, Identity, and Content Validation components as they are completed).
+        *   Build fresh Docker images for DLI nodes (incorporating MVDLI, Identity, Content Validation, and Governance components as they are completed).
         *   Automatically deploy these images to a consistent, containerized (Docker Compose or Kubernetes-lite like k3s/Kind) multi-node test environment. This environment will simulate a small EchoNet network.
     *   **2. Automated End-to-End (E2E) Scenario Tests:**
         *   Run a suite of automated E2E tests using the CLI/test client against the deployed simulated testnet.
-        *   These tests will cover core MVP user stories as defined in Section 6.1 (e.g., DID creation -> content publish -> basic PoE interaction -> view content).
+        *   These tests will cover core MVP user stories as defined in Section 6.1 and 6.2 (e.g., DID creation -> content publish -> PoE interaction -> governance proposal -> vote -> parameter check).
         *   Test failures here would indicate issues with inter-module integration or deployment configurations.
 
 *   **Artifact Management (Conceptual for MVP):**
@@ -441,9 +541,9 @@ To further enhance code quality, design clarity, and developer confidence during
     2.  **Green:** Write the minimal amount of code necessary to make the test pass.
     3.  **Refactor:** Clean up the code (both production and test code) to improve readability, maintainability, and performance while ensuring all tests still pass.
 *   **Scope of TDD for MVP:**
-    *   TDD is mandated for all new **core DLI logic** (e.g., PoW event validation rules, DDS chunk management, Discovery DHT operations).
-    *   It will be applied to **business logic within DLI-native "contracts"** (even if these are conceptual Go modules in the MVP, like the ReputationUpdateContract or PoEDistributionContract).
-    *   Critical **library functions** (e.g., canonicalization, hashing utilities, `did:echonet` helper functions) will also be developed using TDD.
+    *   TDD is mandated for all new **core DLI logic** (e.g., PoW event validation rules, DDS chunk management, Discovery DHT operations, governance state transitions).
+    *   It will be applied to **business logic within DLI-native "contracts"** (even if these are conceptual Go modules in the MVP, like the ReputationUpdateContract or PoEDistributionContract, ProposalLifecycleManager).
+    *   Critical **library functions** (e.g., canonicalization, hashing utilities, `did:echonet` helper functions, vote tallying) will also be developed using TDD.
     *   User Interface (UI) development for the CLI/test client might use other testing approaches (like BDD or manual E2E testing for usability), but the underlying command handlers and logic interacting with the DLI should still be TDD-driven where possible.
 *   **Unit Test Focus:**
     *   TDD naturally produces a comprehensive suite of unit tests that cover individual components thoroughly.
@@ -481,7 +581,7 @@ Consistent documentation and effective collaboration are vital for the success o
             *   Protobuf definitions (`.proto` files) for data structures and RPC services serve as the primary API specification. These will be version-controlled with the codebase.
             *   Generated documentation from Protobufs (e.g., using `protoc-gen-doc`) will be utilized.
         *   **Setup Guides for MVDLI Nodes:** Clear, concise instructions on how to compile, configure, and run an MVDLI node in a test environment.
-        *   **Usage Instructions for Test Client/CLI:** Detailed examples of how to use the test client/CLI to perform all MVP user stories (content publishing, DID registration, consent actions, PoE interactions).
+        *   **Usage Instructions for Test Client/CLI:** Detailed examples of how to use the test client/CLI to perform all MVP user stories (content publishing, DID registration, consent actions, PoE interactions, basic governance actions).
     *   **Code Comments:**
         *   Developers are expected to write clear, concise comments in the Go code, especially for:
             *   Public functions and struct fields (GoDoc style).
@@ -545,7 +645,7 @@ Key areas for development beyond the MVP include:
     *   Development of full-featured native mobile applications (iOS, Android) for the "Host" role.
     *   Implementation and testing of more advanced mobile node roles (Super-Host, Decelerator, potentially limited Mobile Witness roles) as per `tech_specs/mobile_node_specifications.md`.
 *   **Governance:**
-    *   Implementation of the on-DLI governance mechanisms outlined in `echonet_v3_governance_model.md` for protocol upgrades, parameter changes, and treasury management.
+    *   Implementation of the on-DLI governance mechanisms outlined in `echonet_v3_governance_model.md` for protocol upgrades, parameter changes, and treasury management (beyond MVP's basic parameter changes).
 *   **Scalability, Performance & Security:**
     *   Continuous performance profiling and optimization of DLI nodes and protocols.
     *   Horizontal scaling strategies for DLI components.
